@@ -69,6 +69,7 @@ let ledPositions: number[] = []
 /////////////////////////////////////////////////////////////
 //// RADIO
 radio.setGroup(10)
+let sendStop = false
 
 /////////////////////////////////////////////////////////////
 //// RANDOM STATES
@@ -93,6 +94,7 @@ let TIME_STATE_BACKWARD = 2000
 let STATE_STOP = 0
 let STATE_FORWARD = 1
 let STATE_BACKWARD = 2
+let STATE_STOP_RECEIVED = 3
 let STATE_NONE = -1
 let STATE_ARR = [STATE_FORWARD, STATE_BACKWARD, STATE_STOP]
 let NUM_STATE = STATE_ARR.length
@@ -132,11 +134,11 @@ basic.forever(function () {
 //// MOTOR MODES
 basic.forever(function () {
     if (state === STATE_STOP) {
+        if(sendStop){
+            sendStop = false
+            radio.sendNumber(1)
+        }
         if (input.runningTime() < timeCheck + TIME_STATE_STOP) {
-            motorA = STOP
-            motorB = STOP
-            color = COL_STOP
-            delay = DELAY_STRIP_STOP
             stateActive = true
         } else {
             state = STATE_NONE
@@ -173,6 +175,18 @@ basic.forever(function () {
         color = COL_WHITE
         delay = DELAY_STRIP_SLOW
         stateActive = false
+    } else if (state === STATE_STOP_RECEIVED){
+        if (input.runningTime() < timeCheck + TIME_STATE_STOP) {
+            stateActive = true
+            motorA = STOP
+            motorB = STOP
+            color = COL_STOP
+            delay = DELAY_STRIP_STOP
+        } else {
+            state = STATE_NONE
+            stateActive = false
+            timePreviousCheck = input.runningTime()
+        }
     }
 
     PCA9685.setLedDutyCycle(PIN_MA, motorA, ADDRESS)
@@ -243,6 +257,9 @@ function debounceButton() {
                 buttonBusy = true
                 stripButton.showColor(COL_BLUE)
                 state = availableState
+                if (state === STATE_STOP){
+                    sendStop = true
+                }
                 timeCheck = input.runningTime()
             } else {
                 buttonBusy = false
@@ -262,3 +279,7 @@ function initLedPositions() {
         }
     }
 }
+
+radio.onReceivedNumber(function(receivedNumber: number) {
+    state = STATE_STOP_RECEIVED
+})
